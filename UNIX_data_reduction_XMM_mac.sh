@@ -21,7 +21,7 @@
 ####                                                                                                              ####
 ######################################################################################################################
 
-############################### 0) DEFINE DIRECTORIES & ENVIRONMENT VARIABLES ###########################################
+############################### DEFINE DIRECTORIES & ENVIRONMENT VARIABLES ###########################################
 
 date > Info_starting_time.txt  # Creates a text file that stores start date and time to calculate routine duration
 T="$(date +%s)"
@@ -51,7 +51,7 @@ cd ${DIR_work}              # This "cd" is necessary only if the working dorecto
 ### /DIR_work/SOURCE_NAME2/pps (this sub-directory is created by the code once the source list is provided)
 ### ....
 
-######################### 1) SOURCE & BACKGROUND COORDINATE LISTS READING ####################################
+############################### SOURCE & BACKGROUND COORDINATE LISTS READING #########################################
 ###
 ### These files give the coordinates for source and background that are taken from EPIC images or event files (see below)
 
@@ -75,7 +75,7 @@ done
 
 index=0
 
-################################### 2) SOURCE & EXPOSURE LISTS READING #########################################
+############################### SOURCE & EXPOSURE LISTS READING ######################################################
 
 index=0
 
@@ -101,6 +101,8 @@ else
 
 SOURCE=${i}                                   # Give the source name to the environment variable SOURCE
 
+############################### CREATING STRUCTURE OF SUB-DIRECTORIES ################################################
+
 mkdir ${DIR_work}/${SOURCE}/images_skycoord/       # DIR to dump EPIC images for stacking images from observations
 
 mkdir ${DIR_work}/${SOURCE}/light_curves           # DIR to dump lc for comparing among observations
@@ -114,6 +116,8 @@ DIR_backup_lghtcrv=${DIR_work}/${SOURCE}/light_curves/lc_files # Assign lc-backu
 
 # mkdir ${DIR_work}/${i}/$1/odf # This is principle should have been created at the moment of the data download.
   mkdir ${DIR_work}/${i}/$1/pps
+
+############################### START TO WORK ON THE ODF RAW DATA FILES ##############################################
 
 echo "———————————————————————— LEVEL 0.0 cifbuild, odfingest (create summary and calibration files) ————————————————————————————————"
 
@@ -160,6 +164,8 @@ echo Going to the PPS directory ${DIR_work}/${i}/$1/pps/
 
 cd ${DIR_work}/${i}/$1/pps/
 
+############################### START TO CREATE DATA PRODUCTS (EVENT FILES) ##########################################
+
 echo "———————————————————————— LEVEL 1.0 rgsproc, epproc, omchain (create event files) —————————————————————————————————————————————"
 
 # emproc   -V 1 > emproc_log.txt
@@ -178,6 +184,8 @@ echo "———————————————————————— L
 # ln -s $( find . -name '*_EMOS1_*Evts.ds') mos1.fits
 # ln -s $( find . -name '*_EMOS2_*Evts.ds') mos2.fits
 # ln -s $( find . -name '*_EPN_*Evts.ds')   pn.fits
+
+############################### CLEAN THE EVENT LISTS TO PRODUCE CLEAN DATA ##########################################
 
 echo "———————————————————————— LEVEL 2.1 EPIC BKG flaring according to XMM-SAS standard routines (evselect) ————————————————————————"
 
@@ -219,6 +227,8 @@ echo "———————————————————————— L
 #
 #   evselect table="pn.fits:EVENTS" withfilteredset=Y filteredset=pn_filtered.fits destruct=Y keepfilteroutput=T \
 #    expression='#XMMEA_EP && gti(pn_gti.fits,TIME) && (PI in [300:10000]) && (PATTERN<=4) && (FLAG==0)' -V 1 >> log_epic_flaring
+
+############################### EPIC IMAGE, SPECTRA AND LIGHTCURVE EXTRACTION ########################################
 
 echo "Extracting MOS 1 images for several ranges of energy (for loop on energy ranges)"
 
@@ -563,6 +573,8 @@ done
 #EOF
 #
 #sleep 1
+
+############################### RGS DATA CLEANING, 1D IMAGE ABD SPECTRA EXTRACTION ###################################
 
 echo "———————————————————————— LEVEL 2.3 RGS data reduction (BKG flaring, PSF selection and stacking) ——————————————————————————————"
 
@@ -1049,6 +1061,8 @@ echo "———————————————————————— L
 #     -contour smooth 5 -contour nlevels 6 -contour save ds9.con &
 #
 #cd ..
+
+############################### EPIC AND RGS SPECTRA STACKING ########################################################
 
 echo "———————————————————————— LEVEL 3.2 EPIC data reduction (stacking of spectra from all observations) ———————————————————————————"
 
