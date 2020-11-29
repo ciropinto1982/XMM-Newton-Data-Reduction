@@ -508,9 +508,9 @@ mkdir EPIC_lightcurves
 
 DIR_lc=${PWD}/EPIC_lightcurves
 
-min_energy=( 300  300 1000   300)
-max_energy=(5000 1000 5000 10000)
-idf_energy=(0350 0310 1050  EPIC)
+min_energy=( 300  300 1000   300  330)
+max_energy=(5000 1000 5000 10000 1770)
+idf_energy=(0350 0310 1050  EPIC  RGS)
 
 for a in 3     # 0 1 2 3 # for different energy bins for lightcurves # # # in Linux it used to be: ((a=0;a<=1 d;a++));
 do
@@ -678,6 +678,59 @@ echo "Make RGS 1,2 region and banana plots to check extraction effciency."
 #ps2pdf rgs_region_R2.ps
 #
 #open rgs_region_R1.pdf rgs_region_R2.pdf
+
+echo "Extracting RGS lightcurves with binsize ${timebinsize}"
+
+## echo For convenience, EPIC and RGS lightcurves are put in the same directory
+
+R1_EVE=`find . -name '*R1*EVENLI*'`
+R2_EVE=`find . -name '*R2*EVENLI*'`
+
+R1_EVE=${R1_EVE:2}
+R2_EVE=${R2_EVE:2}
+
+did=${R1_EVE:0:11}
+expno1=${R1_EVE:13:4}
+expno2=${R2_EVE:13:4}
+
+srcid=1
+
+mkdir EPIC_lightcurves
+
+DIR_lc=${PWD}/EPIC_lightcurves
+
+min_energy=( 300  300 1000   300  330)
+max_energy=(5000 1000 5000 10000 1770)
+idf_energy=(0350 0310 1050  EPIC  RGS)
+
+for a in 4  # 1 2 3 4 # # # in Linux it used to be: ((a=0;a<=1 d;a++)); ### RGS operative better is: 0.33 to 1.77 keV
+do
+echo Light curve Energy range $((${a})): ${min_energy[a]} - ${max_energy[a]} eV "(band: ${idf_energy[a]})"
+
+for timebinsize in 100 # # # 500 1500 # 250 500 1000 1500 2000 2500 3000 # 3500 4000 4500 5000 # time binsize in seconds
+do
+
+#   rgslccorr evlist="${did}R1${otype}${expno1}EVENLI0000.FIT ${did}R2${otype}${expno2}EVENLI0000.FIT" \
+#		    srclist="${did}R1${otype}${expno1}SRCLI_0000.FIT ${did}R2${otype}${expno2}SRCLI_0000.FIT" \
+#        timebinsize=${timebinsize} orders='1 2' sourceid=${srcid} outputsrcfilename=${DIR_lc}/RGS_lccorr_${idf_energy[a]}_${timebinsize}s.lc > log_lightcurve.txt
+#
+#    dstoplot table=${DIR_lc}/RGS_lccorr_${idf_energy[a]}_${timebinsize}s.lc withx=yes x=TIME withy=yes y=RATE.ERROR \
+#		    output=file outputfile=${DIR_lc}/RGS_lccorr_${idf_energy[a]}_${timebinsize}s.dat >> log_lightcurve.txt
+#
+#    cp ${DIR_lc}/RGS_lccorr_${idf_energy[a]}_${timebinsize}s.dat ${DIR_backup_lghtcrv}/${did}_RGS_lccorr_${idf_energy[a]}_${timebinsize}s.dat
+#    cp ${DIR_lc}/RGS_lccorr_${idf_energy[a]}_${timebinsize}s.lc  ${DIR_backup_lghtcrv}/${did}_RGS_lccorr_${idf_energy[a]}_${timebinsize}s.lc
+
+echo Plotting the lightcurves with QDP-PLOT
+
+###qdp << EOF
+###${DIR_lc}/RGS_lccorr_${idf_energy[a]}_${timebinsize}s.dat
+###/xs
+###p
+###q
+###EOF
+
+done
+done
 
 echo "Copying spectra and responses to files with standard names (used by rgscombine / stacking below)"
 
