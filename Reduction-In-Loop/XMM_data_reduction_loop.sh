@@ -44,11 +44,13 @@ cd ${DIR_work}              # This "cd" is necessary only if the working dorecto
 ### /DIR_work/list_of_src.txt
 ### /DIR_work/list_of_exp.txt
 ### /DIR_work/SOURCE_NAME1
-### /DIR_work/SOURCE_NAME1/odf (this sub-directory is assumed as downloaded from XMM-Newton/XSA webarchive)
-### /DIR_work/SOURCE_NAME1/pps (this sub-directory is created by the code once the source list is provided)
+### /DIR_work/SOURCE_NAME1/EXP1
+### /DIR_work/SOURCE_NAME1/EXP1/odf (this sub-directory is assumed as downloaded from XMM-Newton/XSA webarchive)
+### /DIR_work/SOURCE_NAME1/EXP1/pps (this sub-directory is created by the code once the source list is provided)
 ### /DIR_work/SOURCE_NAME2
-### /DIR_work/SOURCE_NAME2/odf (this sub-directory is assumed as downloaded from XMM-Newton/XSA webarchive)
-### /DIR_work/SOURCE_NAME2/pps (this sub-directory is created by the code once the source list is provided)
+### /DIR_work/SOURCE_NAME2/EXP2
+### /DIR_work/SOURCE_NAME2/EXP2/odf (this sub-directory is assumed as downloaded from XMM-Newton/XSA webarchive)
+### /DIR_work/SOURCE_NAME2/EXP2/pps (this sub-directory is created by the code once the source list is provided)
 ### ....
 
 ############################### SOURCE & BACKGROUND COORDINATE LISTS READING #########################################
