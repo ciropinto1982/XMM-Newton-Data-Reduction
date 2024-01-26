@@ -4,6 +4,8 @@
 
 - MOS_data_reduction_RGSmodule.sh is a quick auxiliary module that uses MOS1 data to estimate RGS line instrumental broadening
 
+- A3526_RGSfits.com is a simple SPEX executable / tutorial that explains how to fit the RGS spectra orders 1,2 of an extended source
+
 License: This public code was developed for and published in the paper Pinto et al. (2015), DOI: 10.1051/0004-6361/201425278, arXiv: 1501.01069, bibcode: 2015A&A...575A..38P. You may refer to this.
 For the line instrumental broadrening in extended sources please refer to parallel / complementary routine
 For theoretical info on such issue see https://spex-xray.github.io/spex-help/models/lpro.html
