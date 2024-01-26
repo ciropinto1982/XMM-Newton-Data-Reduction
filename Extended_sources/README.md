@@ -1,3 +1,5 @@
+In this branch there are the essential scripts to extract XMM-Newton / RGS spectra, compute the line broadening due to the lack of a slit and the presence of an extended source of X-ray emission (e.g. the Centaurus galaxy clusters, Abell 3526), and fit the spectra with SPEX.
+
 - RGS_data_reduction_extended_src.sh is a tutorial to learn the basic reduction for RGS data (especially to align spectra)
 
 - trafo_sector2_RGS.sh is a simple script which manages RGS order 1 and 2 spectra into 2 sectors for ad-hoc simultaneous fits
