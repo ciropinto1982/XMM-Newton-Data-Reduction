@@ -2,7 +2,7 @@
 
 ########################################## ROUTINE DESCRIPTION ###########################################################
 ####                                                                                                                  ####
-#### This bash code performs an XMM-Newton RGS basic data reduction for 1 source + align/stack spectra of 2 exposures ####
+#### This bash code performs an XMM-Newton MOS quick data reduction to estimate the RGS instrumental line broadening  ####
 ####                                                                                                                  ####
 #### 1) Provide source name and exposure and, importantly, the ODF (raw data) directory and sub-directory             ####
 ####    Here we adopt the following structure:                                                                        ####
@@ -13,13 +13,13 @@
 #### 2) The code will automatically create the necessary sub-directories (apart from the ODF) and run XMM-SAS         ####
 ####    Each task's output is stored in file called "log_***.txt" so that the detail calculation can be checked.      ####
 ####                                                                                                                  ####
-#### 3) At first it runs the ODF basic routines (cifduild, odfingest) and then RGSPROC                                ####
-####    Ideally, you should have launched before EPPROC or EMPROC to check X-ray emission peak and PSF/line width     ####
+#### 3) At first it runs the ODF basic routines (cifduild, odfingest) and then EPIC                                   ####
+####    The RGS data reduction is run with the routine RGS_data_reduction_extended_src.sh (they can be merged in 1)   ####
 ####                                                                                                                  ####
-#### 4) After removal of Solar flares, it extract RGS data one specific ra/dec coordinates (if provided)              ####
-####    IMPORTANT: chose the SRCID=1 for deault extraction and SRCID=3 if desired ra/dec are provided for alignment   ####
+#### 4) After removal of Solar flares, it extract MOS 1 data, extract the images in detector coordinates              ####
+####    IMPORTANT: the SPEX rgsvprof tool is used to estimate surface brightness profile and convert it in angstrom   ####
 ####                                                                                                                  ####
-#### 5) The code also converts the spectra in SPEX format (if SPEX is installed), opens the spectra & saves plots     ####
+#### 5) A quick PYTHON script opens the line broadening profiles, compared them and estimate an average profile       ####
 ####                                                                                                                  ####
 #### NOTE: all main commands have been disabled with a single "#"; uncomment & launch each one as first exercise      ####
 ####                                                                                                                  ####
@@ -29,7 +29,7 @@
 ####                                                                                                                  ####
 ####   License: This public code was developed for and published in the paper Pinto et al. (2015),                    ####
 ####   DOI: 10.1051/0004-6361/201425278, arXiv: 1501.01069, bibcode: 2015A&A...575A..38P. You may refer to this.      ####
-####   For the line instrumental broadrening in extended sources please refer to parallel / complementary routine     ####
+####   For theoretical info on such issue see https://spex-xray.github.io/spex-help/models/lpro.html                  ####
 ####                                                                                                                  ####
 ##########################################################################################################################
 
