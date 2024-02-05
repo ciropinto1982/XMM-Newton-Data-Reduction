@@ -2,7 +2,7 @@
 
 ########################################## ROUTINE DESCRIPTION ###########################################################
 ####                                                                                                                  ####
-#### This bash code performs an XMM-Newton MOS quick data reduction to estimate the RGS instrumental line broadening  ####
+#### This bash code performs an XMM-Newton RGS basic data reduction for 1 source + align/stack spectra of 2 exposures ####
 ####                                                                                                                  ####
 #### 1) Provide source name and exposure and, importantly, the ODF (raw data) directory and sub-directory             ####
 ####    Here we adopt the following structure:                                                                        ####
@@ -13,13 +13,14 @@
 #### 2) The code will automatically create the necessary sub-directories (apart from the ODF) and run XMM-SAS         ####
 ####    Each task's output is stored in file called "log_***.txt" so that the detail calculation can be checked.      ####
 ####                                                                                                                  ####
-#### 3) At first it runs the ODF basic routines (cifduild, odfingest) and then EPIC                                   ####
-####    The RGS data reduction is run with the routine RGS_data_reduction_extended_src.sh (they can be merged in 1)   ####
+#### 3) At first it runs the ODF basic routines (cifduild, odfingest) and then RGSPROC                                ####
+####    Ideally, you should have launched before EPPROC or EMPROC to check X-ray emission peak and PSF/line width     ####
 ####                                                                                                                  ####
-#### 4) After removal of Solar flares, it extract MOS 1 data, extract the images in detector coordinates              ####
-####    IMPORTANT: the SPEX rgsvprof tool is used to estimate surface brightness profile and convert it in angstrom   ####
+#### 4) After removal of Solar flares, it extract RGS data one specific ra/dec coordinates (if provided)              ####
+####    IMPORTANT: chose the SRCID=1 for deault extraction and SRCID=3 if desired ra/dec are provided for alignment.  ####
+####               The example provided here are 2 XMM on-axis observations of Centaurus galaxy cluster (Abell 3526)  ####
 ####                                                                                                                  ####
-#### 5) A quick PYTHON script opens the line broadening profiles, compared them and estimate an average profile       ####
+#### 5) The code also converts the spectra in SPEX format (if SPEX is installed), opens the spectra & saves plots     ####
 ####                                                                                                                  ####
 #### NOTE: all main commands have been disabled with a single "#"; uncomment & launch each one as first exercise      ####
 ####                                                                                                                  ####
@@ -29,6 +30,7 @@
 ####                                                                                                                  ####
 ####   License: This public code was developed for and published in the paper Pinto et al. (2015),                    ####
 ####   DOI: 10.1051/0004-6361/201425278, arXiv: 1501.01069, bibcode: 2015A&A...575A..38P. You may refer to this.      ####
+####   For the line instrumental broadrening in extended sources please refer to parallel / complementary routine     ####
 ####   For theoretical info on such issue see https://spex-xray.github.io/spex-help/models/lpro.html                  ####
 ####                                                                                                                  ####
 ##########################################################################################################################
@@ -87,7 +89,7 @@ for i in "${src_ID[0]}"
  
  export SAS_ODF=$PWD
  export SAS_CCFPATH=/PATH/TO/YOUR/SAS/CCF/FILES
- export SAS_VERBOSITY=1
+ export SAS_VERBOSITY=2
 
 ###  rm `find . -name '*SUM.SAS'` # In case you want to remove OLD SAS SUM files.
 
@@ -123,85 +125,104 @@ for i in "${src_ID[0]}"
     
  echo I am working in directory: $PWD ...........................................................
  
- echo "--------EPIC MOS data reduction: running emproc, in this case only for MOS 1"
+echo ' running rgsproc, please be patient: uncomment to run it------------------'
 
-# emproc selectinstruments=yes emos1=yes -V 1 > emproc_log.txt # Extracting only MOS1 data (for imaging / RGS line broadening)
-#
-#   ln -s $( find . -name '*_EMOS1_*Evts.ds') mos1.fits
-#
-# echo $( find . -name 'mos1.fits')
-  
-echo "-------Extracting lightcurves for Solar flares removal: ----------------- MOS 1"
+# rgsproc -V 1 > rgsproc_log.txt
 
-#   evselect table="mos1.fits:EVENTS" withrateset=Y rateset=mos1_lc.fits \
-#    timecolumn=TIME maketimecolumn=Y timebinsize=100 makeratecolumn=Y \
-#    expression='#XMMEA_EM && (PI>10000) && (PATTERN==0)' -V 1 >> log_epic_flaring
-#
-#    dsplot table=mos1_lc.fits x=TIME y=RATE &
-#
-#   tabgtigen table=mos1_lc.fits  expression="(RATE < 0.35)" gtiset=mos1_gti.fits  -V 1 >> log_epic_flaring
-#
-#   evselect table="mos1.fits:EVENTS" withfilteredset=Y filteredset=mos1_filtered.fits destruct=Y keepfilteroutput=T \
-#    expression='#XMMEA_EM && gti(mos1_gti.fits,TIME) && (PI in [300:10000]) && (PATTERN<=12)' -V 1 >> log_epic_flaring
-
-  echo "---------Filtering data-------------------------------------------------------------------------"
-
-#    evselect table="mos1.fits:EVENTS" withfilteredset=Y filteredset=mos1_filtered.fits destruct=Y keepfilteroutput=T \
-#             expression='#XMMEA_EM && gti(mos1_gti.fits,TIME) && (PI in [300:10000]) && (PATTERN<=12)' -V 1 >> log_epic_flaring
-
-echo "MOS 1 filtered dataset created:" ${DIR}/$i/$j/pps/mos1_filtered.fits
-
-echo "Extracting MOS 1 images (sky and detector coordinates) for several ranges of energy (for loop on energy ranges)"
-
-minimum_energy=( 300  800  326  350 350 500  900 1200 1800 3000 460  690  350  500)
-maximum_energy=(2500 1400 2500 1770 500 900 1200 1800 3000 7000 690  890 1770 1770)
-identif_energy=(full iron rgs1 rgs2   0   A    B    C    D    E  A2   B2 rgs3  RGS)
-
-mkdir mos1_images
-mkdir mos1_images_skycoord
-
- for ((a=13;a<=13;a++)); # for this exercise we extract only the band of RGS where the source is above the BKG (0.5-1.77 keV)
-  do
-   echo Energy range $((${a}+1)): ${minimum_energy[a]} - ${maximum_energy[a]} eV "(band: ${identif_energy[a]})"
-
-### echo "Uncomment the following if you also want to extract a skycoord image"
+### The following rgsproc to directly align RGS spectra crashes, so use it later on once already launched rgsproc as above
 ###
-### evselect table=mos1_filtered.fits expression="(PI in [${minimum_energy[a]}:${maximum_energy[a]}])" filtertype=expression \
-###          imageset=./mos1_images_skycoord/mos1_band_${identif_energy[a]}.fits \
-###          xcolumn=X ycolumn=Y ximagebinsize=80 yimagebinsize=80 \
-###          ximagesize=600 yimagesize=600 imagebinning=binSize withimageset=yes > my_images_log.txt
+### rgsproc withsrc=yes srclabel=A3526 \
+###                    srcstyle=radec srcra=192.20573 srcdec=-41.312351 -V 1 > rgsproc_log.txt
+###
+### If necessary, remember to remove double/splitted small exposures (very short event files).
 
-# evselect table=mos1_filtered.fits expression="(PI in [${minimum_energy[a]}:${maximum_energy[a]}])" filtertype=expression \
-#          imageset=./mos1_images/mos1_band_${identif_energy[a]}_det.fits \
-#          xcolumn=DETX ycolumn=DETY ximagebinsize=80 yimagebinsize=80 \
-#          ximagesize=600 yimagesize=600 imagebinning=binSize withimageset=yes > my_images_log.txt
+echo Event list created: ..................................................... `find . -name '*EVENLI*'`
 
-  done
+echo Extracting information and exposure detail from the eventlist file:
  
-echo "Extracting MOS 1 cumulative profiles with RGSvprof (for RGS line instrumental broadening) ----------"
+R1_EVE=`find . -name '*R1*EVENLI*'`
+R2_EVE=`find . -name '*R2*EVENLI*'`
 
-### NOTE: if you chose a 90% PSF extration for RGS spectra then select +/-0.4 arc minutes Cross-dispersion
-###       a 10 arcmin selection region along the dispersion direction is normally sufficient.
+R1_EVE=${R1_EVE:2}
+R2_EVE=${R2_EVE:2}
 
- cd mos1_images/
+    did=${R1_EVE:0:11}
+expno1=${R1_EVE:13:4}
+expno2=${R2_EVE:13:4}
 
- for file in mos1_band_RGS_det
- do
+srcid=3
 
-echo "rgsvprof for $file within 0.4x2 arcmin with 10 am width"
+echo "--------RGS background lightcurve: necessary to remove solar flares--------------------"
 
-#rgsvprof << EOF
-#${file}.fits
-#-0.4 +0.4
-#10.0
-#$file.0p4.10am.dat
-#EOF
+### Create BKG lightcurves for both RGS 1 and 2, plot them, choose cutting theshold e.g. standard 0.2 c/s,
+### Create good time intervals (GTI) files and merge RGS 1-2 GTI files.
 
- done
+# evselect table="${did}R1${otype}${expno1}EVENLI0000.FIT:EVENTS" makeratecolumn=yes maketimecolumn=yes timecolumn=TIME timebinsize=100 \
+#          expression="(CCDNR == 9) && ((M_LAMBDA,XDSP_CORR) in REGION(${did}R1${otype}${expno1}SRCLI_0000.FIT:RGS1_BACKGROUND))" \
+#          rateset=rgs1_bglc.fits -V 1 > other_log.txt
+# evselect table="${did}R2${otype}${expno2}EVENLI0000.FIT:EVENTS" makeratecolumn=yes maketimecolumn=yes timecolumn=TIME timebinsize=100 \
+#          expression="(CCDNR == 9) && ((M_LAMBDA,XDSP_CORR) in REGION(${did}R2${otype}${expno2}SRCLI_0000.FIT:RGS2_BACKGROUND))" \
+#          rateset=rgs2_bglc.fits -V 1 > other_log.txt
+#
+# #  dsplot table=rgs1_bglc.fits x=TIME y=RATE &
+# #  dsplot table=rgs2_bglc.fits x=TIME y=RATE &
+#
+# tabgtigen table=rgs1_bglc.fits gtiset=gti_rgs1_0p1.fits expression="(RATE < 0.2)" -V 1 > other_log.txt
+# tabgtigen table=rgs2_bglc.fits gtiset=gti_rgs2_0p1.fits expression="(RATE < 0.2)" -V 1 > other_log.txt
+#
+# gtimerge tables="gti_rgs1_0p1.fits gti_rgs2_0p1.fits" withgtitable=yes gtitable=gti_rgs_merged.fits \
+#          mergemode=and plotmergeresult=false -V 1 > other_log.txt
 
-cd ..
- 
-index=$(($index+1))
+### Set up for the level 2 extraction: GTI, mask and source coordinates, MODEL BKG spectrum extracted too
+
+bkgcor=NO
+gtifile=gti_rgs_merged.fits
+withsrc=yes
+srcstyle=radec
+srclabel=A3526
+srcra=192.20573
+srcdec=-41.312351
+xpsfincl=90
+xpsfexcl=98
+pdistincl=95
+
+### Rerun rgsproc with exact coordinates, masks e.g. PSF=90% (default=95%), and GTI file to remove flares.
+
+#  rgsproc srcra=${srcra} srcdec=${srcdec} withsrc=${withsrc} srclabel=${srclabel} srcstyle=${srcstyle} \
+#          bkgcorrect=${bkgcor} auxgtitables=${gtifile} withbackgroundmodel=yes \
+#          xpsfincl=${xpsfincl} xpsfexcl=${xpsfexcl} pdistincl=${pdistincl} -V 1 > rgsproc_log.txt
+        
+### Chosing "srcid=3" makes sure that in the coming the data spectra extracted above are considered
+
+srcid=3
+
+echo "--------RGS region and banana plot to show selection regions---------------------------------------------------------------"
+
+#  evselect table="${did}R1${otype}${expno1}EVENLI0000.FIT:EVENTS" withimageset=yes imageset='rgs_spatial1.fit' \
+#           xcolumn='M_LAMBDA' ycolumn='XDSP_CORR' -V 1 > other_log.txt
+#  evselect table="${did}R1${otype}${expno1}EVENLI0000.FIT:EVENTS" withimageset=yes imageset='rgs_banana1.fit' \
+#           xcolumn='M_LAMBDA' ycolumn='PI' withyranges=yes yimagemin=0 yimagemax=3000 \
+#           expression="region(${did}R1${otype}${expno1}SRCLI_0000.FIT:RGS1_SRC${srcid}_SPATIAL,M_LAMBDA,XDSP_CORR)" -V 1 > other_log.txt
+#
+#  evselect table="${did}R2${otype}${expno2}EVENLI0000.FIT:EVENTS" withimageset=yes imageset='rgs_spatial2.fit' \
+#           xcolumn='M_LAMBDA' ycolumn='XDSP_CORR' -V 1 > other_log.txt
+#  evselect table="${did}R2${otype}${expno2}EVENLI0000.FIT:EVENTS" withimageset=yes imageset='rgs_banana2.fit' \
+#           xcolumn='M_LAMBDA' ycolumn='PI' withyranges=yes yimagemin=0 yimagemax=3000 \
+#           expression="region(${did}R2${otype}${expno2}SRCLI_0000.FIT:RGS2_SRC${srcid}_SPATIAL,M_LAMBDA,XDSP_CORR)" -V 1 > other_log.txt
+#
+#  rgsimplot endispset='rgs_banana1.fit' spatialset='rgs_spatial1.fit' srcidlist="${srcid}" \
+#            srclistset="${did}R1${otype}${expno1}SRCLI_0000.FIT" \
+#            withendispregionsets=yes withendispset=yes withspatialregionsets=yes \
+#            withspatialset=yes device=/cps plotfile=rgs_region_R1.ps -V 1 > other_log.txt
+#  rgsimplot endispset='rgs_banana2.fit' spatialset='rgs_spatial2.fit' srcidlist="${srcid}" \
+#            srclistset="${did}R2${otype}${expno2}SRCLI_0000.FIT" \
+#            withendispregionsets=yes withendispset=yes withspatialregionsets=yes \
+#            withspatialset=yes device=/cps plotfile=rgs_region_R2.ps -V 1 > other_log.txt
+#
+### ps2pdf rgs_region_R1.ps
+### ps2pdf rgs_region_R2.ps
+###   open rgs_region_R1.pdf
+###   open rgs_region_R2.pdf
 
 echo "End of the main commands!"
 
@@ -210,55 +231,252 @@ done
 
 done
 
+echo '--------------------RGS spectra stacking order 1 and order 2 from all exposures---------------------------'
+
 cd ${DIR}/${i}
 
-echo "PYTHON checking the shape of the vProf RGS line broadening profiles"
+### Make a list of source spectrum files, response files, background files.
+### Then run rgscombine to stack them all (both RGS 1 and 2 first order).
+### Here the modelbackground spectrum (000.FIT) is used. Then trafo convert.
 
-#find . -name "*.0p4.10am.dat"
+# rm src_list.txt bkg_list.txt rsp_list.txt
 #
-#python - <<EOF
+# echo ' '`find . -name "*R*SRSPEC*1003.FIT" | sort` >> src_list.txt
+# echo ' '`find . -name "*R*MBSPEC*1000.FIT" | sort` >> bkg_list.txt
+# echo ' '`find . -name "*R*RSPMAT*1003.FIT" | sort` >> rsp_list.txt
 #
-#import numpy as np
-#import matplotlib.pyplot as plt
+# rgscombine pha="`cat src_list.txt`" bkg="`cat bkg_list.txt`" rmf="`cat rsp_list.txt`" \
+#            filepha="rgs_stacked_srs_align_${xpsfincl}.fits" filermf="rgs_stacked_rmf_align_${xpsfincl}.fits" \
+#            filebkg="rgs_stacked_bkg_align_${xpsfincl}.fits" rmfgrid=4000
+
+### Convert to SPEX format via trafo
 #
-#w1,c1=np.loadtxt("0046340101/pps/mos1_images/mos1_band_RGS_det.0p4.10am.dat",usecols=(0,1), unpack=True)
-#w2,c2=np.loadtxt("0406200101/pps/mos1_images/mos1_band_RGS_det.0p4.10am.dat",usecols=(0,1), unpack=True)
+#trafo << EOF
+#1
+#1
+#10000
+#3
+#16
+#no
+#rgs_stacked_srs_align_${xpsfincl}.fits
+#y
+#no
+#0
+#rgs_stacked_align_${xpsfincl}
+#rgs_stacked_align_${xpsfincl}
+#EOF
+
+### Here the observation background spectrum (003.FIT) is used. Then trafo convert.
+
+# rm src_list.txt bkg_list.txt rsp_list.txt
 #
-#fig1=plt.figure(1)
-#frame1=fig1.add_axes((.12,.12,.85,.85)) # Y: 0.1-0.3+0.00, 0.3-0.5+0.025, 0.5-0.7+0.050, 0.7-0.9+0.075
+# echo ' '`find . -name "*R*SRSPEC*1003.FIT" | sort` >> src_list.txt
+# echo ' '`find . -name "*R*BGSPEC*1003.FIT" | sort` >> bkg_list.txt
+# echo ' '`find . -name "*R*RSPMAT*1003.FIT" | sort` >> rsp_list.txt
 #
-#plt.plot(w1, c1, c='black', linestyle='-',  label="0046340101")
-#plt.plot(w2, c2, c='red',   linestyle='--', label="0406200101")
+# rgscombine pha="`cat src_list.txt`" bkg="`cat bkg_list.txt`" rmf="`cat rsp_list.txt`" \
+#            filepha="rgs_stacked_srs_align_${xpsfincl}.fits" filermf="rgs_stacked_rmf_align_${xpsfincl}.fits" \
+#            filebkg="rgs_stacked_bgs_align_${xpsfincl}.fits" rmfgrid=4000
+
+### Convert to SPEX format via trafo
 #
-#### Computing and saving average profile:
+#trafo << EOF
+#1
+#1
+#10000
+#3
+#16
+#no
+#rgs_stacked_srs_align_${xpsfincl}.fits
+#y
+#no
+#0
+#rgs_stacked_align_bgs_${xpsfincl}
+#rgs_stacked_align_bgs_${xpsfincl}
+#EOF
+
+echo "RGS rebinning to minimul S/N ratio: files might require INSTRUME key to be updated before rebinning."
+
+# fparkey "RGS1" "rgs_stacked_srs_align_${xpsfincl}.fits[0]" INSTRUME add=yes
 #
-#c3=(c1+c2)/2.
+#  Signal_to_Noise=5  # Rebin by S/N ratio
 #
-#output=np.column_stack((w1, c3))
+#   Oversample_bin=0   # do not rebin by PSF
 #
-#np.savetxt('mos1_band_RGS_det.0p4.10am.txt',output,'%1.5e')
+# specgroup spectrumset="rgs_stacked_srs_align_${xpsfincl}.fits" minSN=${Signal_to_Noise} \
+#            backgndset="rgs_stacked_bkg_align_${xpsfincl}.fits" \
+#                rmfset="rgs_stacked_rmf_align_${xpsfincl}.fits" \
+#            groupedset="rgs_stacked_srs_align_${xpsfincl}_s2n${Signal_to_Noise}_oversample${Oversample_bin}.fits"
 #
-#### Update plot
+#trafo << EOF
+#1
+#1
+#10000
+#3
+#16
+#no
+#rgs_stacked_srs_align_${xpsfincl}_s2n${Signal_to_Noise}_oversample${Oversample_bin}.fits
+#y
+#y
+#no
+#0
+#rgs_stacked_srs_align_s2n${Signal_to_Noise}_oversample${Oversample_bin}_${xpsfincl}
+#rgs_stacked_srs_align_s2n${Signal_to_Noise}_oversample${Oversample_bin}_${xpsfincl}
+#EOF
+
+### For exposure background:
 #
-#plt.plot(w2, c3, c='blue',   linestyle=':', label="Average profile")
+# specgroup spectrumset="rgs_stacked_srs_align_${xpsfincl}.fits" minSN=${Signal_to_Noise} \
+#            backgndset="rgs_stacked_bgs_align_${xpsfincl}.fits" \
+#                rmfset="rgs_stacked_rmf_align_${xpsfincl}.fits" \
+#            groupedset="rgs_stacked_srs_align_${xpsfincl}_s2n${Signal_to_Noise}_oversample${Oversample_bin}.fits"
 #
-#plt.legend(loc='upper left', fontsize=10, framealpha=0.) # ,bbox_to_anchor=(0.75, 1.04)
+#trafo << EOF
+#1
+#1
+#10000
+#3
+#16
+#no
+#rgs_stacked_srs_align_${xpsfincl}_s2n${Signal_to_Noise}_oversample${Oversample_bin}.fits
+#y
+#y
+#no
+#0
+#rgs_stacked_srs_align_bgs_s2n${Signal_to_Noise}_oversample${Oversample_bin}_${xpsfincl}
+#rgs_stacked_srs_align_bgs_s2n${Signal_to_Noise}_oversample${Oversample_bin}_${xpsfincl}
+#EOF
+
+##################### Second order spectra stacking Useful for bright sources ############################
 #
-#plt.ylabel("Cumulative profile", fontsize=13)
-#plt.xlabel("Wavelength (Angstrom)", fontsize=13)
+#### MODEL BKG
 #
-#frame1.set_xlim([-0.7,+0.7])
-#frame1.set_ylim([0,1])
+#rm src_list_o2.txt bkg_list_o2.txt rsp_list_o2.txt
 #
-#plt.rcParams.update({'font.size': 13})
+# echo ' '`find . -name "*R*SRSPEC*2003.FIT" | sort` >> src_list_o2.txt
+# echo ' '`find . -name "*R*MBSPEC*2000.FIT" | sort` >> bkg_list_o2.txt
+# echo ' '`find . -name "*R*RSPMAT*2003.FIT" | sort` >> rsp_list_o2.txt
 #
-#plt.savefig('RGS_lineprof_cum.pdf',bbox_inches='tight')
-#plt.close('all')
+# rgscombine pha="`cat src_list_o2.txt`" bkg="`cat bkg_list_o2.txt`" rmf="`cat rsp_list_o2.txt`" \
+#            filepha="rgs_stacked_srs_o2_align_${xpsfincl}.fits" filermf="rgs_stacked_rmf_o2_align_${xpsfincl}.fits" \
+#            filebkg="rgs_stacked_bkg_o2_align_${xpsfincl}.fits" rmfgrid=4000
 #
+#trafo << EOF
+#1
+#1
+#10000
+#3
+#16
+#no
+#rgs_stacked_srs_o2_align_${xpsfincl}.fits
+#y
+#no
+#0
+#rgs_stacked_align_${xpsfincl}_o2
+#rgs_stacked_align_${xpsfincl}_o2
 #EOF
 #
-#open RGS_lineprof_cum.pdf
+#### Observational BKG
+#
+#rm src_list_o2.txt bkg_list_o2.txt rsp_list_o2.txt
+#
+# echo ' '`find . -name "*R*SRSPEC*2003.FIT" | sort` >> src_list_o2.txt
+# echo ' '`find . -name "*R*BGSPEC*2003.FIT" | sort` >> bkg_list_o2.txt
+# echo ' '`find . -name "*R*RSPMAT*2003.FIT" | sort` >> rsp_list_o2.txt
+#
+# rgscombine pha="`cat src_list_o2.txt`" bkg="`cat bkg_list_o2.txt`" rmf="`cat rsp_list_o2.txt`" \
+#            filepha="rgs_stacked_srs_o2_align_${xpsfincl}.fits" filermf="rgs_stacked_rmf_o2_align_${xpsfincl}.fits" \
+#            filebkg="rgs_stacked_bgs_o2_align_${xpsfincl}.fits" rmfgrid=4000
+#
+#trafo << EOF
+#1
+#1
+#10000
+#3
+#16
+#no
+#rgs_stacked_srs_o2_align_${xpsfincl}.fits
+#y
+#no
+#0
+#rgs_stacked_align_bgs_${xpsfincl}_o2
+#rgs_stacked_align_bgs_${xpsfincl}_o2
+#EOF
 
+################################### SPEX plot data ############################################
+
+#spex<<EOF
+#
+#da rgs_stacked_align_90_o2 rgs_stacked_align_90_o2
+#da rgs_stacked_align_90    rgs_stacked_align_90
+#
+#da rgs_stacked_align_bgs_90_o2 rgs_stacked_align_bgs_90_o2
+#da rgs_stacked_align_bgs_90    rgs_stacked_align_bgs_90
+#
+#ign  0:6    u a
+#ign 26:40   u a
+#
+#bin ins 1 6:40 10 u a
+#bin ins 2 6:40  5 u a
+#bin ins 3 6:40 10 u a
+#bin ins 4 6:40  5 u a
+#
+#p de xs
+#p ty da
+#p ux a
+#p uy fa
+#p ry -1 8
+#p se 1
+#p da col 1
+#p li col 1
+#p ba col 1
+#p se 2
+#p da col 11
+#p li col 11
+#p ba col 11
+#p se 3
+#p da col 2
+#p li col 2
+#p ba col 2
+#p se 4
+#p da col 3
+#p li col 3
+#p ba col 3
+#p cap id text "${i} RGS stacked spectrum: Model background VS Observational background"
+#plot cap ut disp f
+#plot cap lt disp f
+#p se al
+#p bac dis t
+#p bac lt 4
+#p da lw 3
+#p mo lw 3
+#p box lw 3
+#p cap y lw 3
+#p cap it lw 3
+#p cap x lw 3
+#p li dis t
+#p mo dis f
+#p ux a
+#p uy fa
+#p ry 0 18
+#p rx 6 26
+#p str new 18 16 "RGS order 1 MBS"
+#p str new 18 15 "RGS order 2 MBS"
+#p str new 18 14 "RGS order 1 OBS"
+#p str new 18 13 "RGS order 2 OBS"
+#p str 1 col 1
+#p str 2 col 11
+#p str 3 col 3
+#p str 4 col 2
+#p
+#p de cps A3526_stacked_BKG_checks.ps
+#p
+#p clo 2
+#q
+#EOF
+#
+#ps2pdf A3526_stacked_BKG_checks.ps
+#  open A3526_stacked_BKG_checks.pdf
 
 cd ${DIR}
 
